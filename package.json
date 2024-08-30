@@ -1,0 +1,45 @@
+{
+  "name": "typescript-boilerplate",
+  "version": "0.1.0",
+  "description": "부스트캠프에서 사용할 TypeScript 보일러 플레이트입니다.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc  && tsc-alias --resolve-full-paths",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint --fix .",
+    "dev:server": "tsx watch src/BE/index.ts",
+    "dev:client": "tsx watch src/FE/index.ts",
+    "build:client": "npx webpack --config webpack.config.js --watch"
+  },
+  "author": "ateals",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^22.4.0",
+    "@typescript-eslint/eslint-plugin": "^8.1.0",
+    "@typescript-eslint/parser": "^8.1.0",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-no-relative-import-paths": "^1.5.5",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.3.3",
+    "ts-jest": "^29.2.4",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.10",
+    "tsx": "^4.17.0",
+    "typescript": "^5.5.4",
+    "webpack": "^5.93.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@fxts/core": "^1.0.1",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "jest": "^29.7.0"
+  }
+}

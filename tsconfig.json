@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ESNext", // ES6
+    "module": "ESNext", // ES6 모듈 시스템
+    "esModuleInterop": true, // ES6 모듈 시스템을 CommonJS 모듈 시스템으로 변환
+    "forceConsistentCasingInFileNames": true, // 파일명 대소문자 일관성 체크
+    "strict": true, // 엄격한 타입 체크
+    "skipLibCheck": true, // 라이브러리 체크 생략
+    "noImplicitAny": true, // any 타입 사용 금지
+    "noEmitOnError": true, // 컴파일에러시 컴파일 중단
+    "noImplicitThis": true, // this 타입 암시적 any 금지
+    "strictNullChecks": true, // null, undefined 타입 검사
+    "strictPropertyInitialization": true, // 클래스의 프로퍼티가 초기화 되었는지 검사
+
+    "jsx": "preserve", // JSX 코드를 변환하지 않음
+
+    "experimentalDecorators": true, // 데코레이터 사용
+    "emitDecoratorMetadata": true, // 데코레이터 메타데이터 사용
+
+    "moduleResolution": "node", // 모듈 해석 방식
+    "resolveJsonModule": true, // JSON 모듈 사용
+
+    "outDir": "./dist", // 컴파일된 파일이 생성될 디렉토리
+    "rootDir": "./src", // 컴파일할 파일이 있는 디렉토리
+    "baseUrl": "./", // 상대경로를 사용하기 위한 기본 경로
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
