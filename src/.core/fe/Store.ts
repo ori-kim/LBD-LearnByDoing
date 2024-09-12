@@ -22,9 +22,9 @@ export const Store = <T extends object>(state: T) => {
       set(value: T[keyof T]) {
         if (Object.is(prevValue, value)) return;
 
-        // if (prevValue === value) return;
+        if (prevValue === value) return;
 
-        // if (JSON.stringify(prevValue) === JSON.stringify(value)) return;
+        if (JSON.stringify(prevValue) === JSON.stringify(value)) return;
 
         prevValue = value;
 

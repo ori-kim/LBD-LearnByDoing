@@ -1,69 +1,139 @@
-import express from 'express';
-import { Entity, PolicyExecutor, Policy } from './const';
-import { EntityPipe, NumberId } from './Middleware';
+import express, { NextFunction, Request, Response } from 'express';
+import {
+  ENDPOINT_METADATA_KEY,
+  HttpMethodType,
+  Middleware,
+  MIDDLEWARES_METADATA_KEY,
+  REQUEST_METADATA_KEY,
+  RESPONSE_METADATA_KEY,
+  ROUTE_METADATA_KEY,
+} from './decorators';
+import { container } from 'tsyringe';
 
-export interface Module<T extends Policy<string>> {
-  Policy: T;
-  Entity: Record<string, Entity>;
-  routePath: string;
-  Controller: new (...args: any[]) => PolicyExecutor<T>;
-  View: new (...args: any[]) => PolicyExecutor<T>;
-  Middlewares?: any[];
-  Providers?: ConstructorParameters<new (...args: any[]) => PolicyExecutor<T>>;
+export interface BootstrapModule {
+  Controller: new (...args: any[]) => any;
+  ErrorHandler?: (err: unknown, res: Response) => unknown;
 }
 
 export class Bootstrap {
-  static app = express();
+  private static app = express();
 
-  static setModules<T extends Policy<string>>(...modules: Module<T>[]) {
-    for (const config of modules) {
-      const {
-        routePath,
-        Providers,
-        Controller: RouteController,
-        View: RouteView,
-        Policy: RoutePolicy,
-        Middlewares: RouteMiddlewares,
-        Entity: RouteEntity,
-      } = config;
+  static setGlobalMiddlewares(...middlewares: Middleware[]) {
+    this.app.use(middlewares);
 
+    return this;
+  }
+
+  static setModules(...modules: any) {
+    for (const module of modules) {
       const router = express.Router();
 
-      const controller = Providers ? new RouteController(...Providers.map((p) => new p())) : new RouteController();
-      const view = new RouteView();
+      const { Controller, ErrorHandler } = module;
 
-      const middlewares = [NumberId(), EntityPipe(RouteEntity), ...(RouteMiddlewares || [])];
+      if (!Controller) continue;
 
-      for (const modifier of Object.keys(RoutePolicy)) {
-        const { METHOD, PATH } = RoutePolicy[modifier];
+      const instance = container.resolve(Controller);
 
-        const primary = Object.keys(RouteEntity).find((key) => RouteEntity[key].isPrimary);
-        const path = PATH(primary || 'id');
+      const endPoint = this.getEndPoint(Controller);
 
-        router[METHOD](path, ...middlewares, async (req, res) => {
+      const { prototype, propertyKeys } = this.getInstancePrototypeAndKeys(instance);
+
+      for (const propertyKey of propertyKeys) {
+        const { method, path } = this.getRoute(prototype, propertyKey);
+
+        if (!method || !path) continue;
+
+        const middlewares = this.getMiddlewares(Controller, prototype, propertyKey);
+
+        const handler = this.createHandler(instance, propertyKey);
+
+        router[method](`${path}`, ...middlewares, async (req, res, next) => {
           try {
-            const data = await controller[modifier](req);
+            const data = await handler(req, res, next);
 
-            return view[modifier]({ res, data });
+            return data instanceof res.constructor ? data : res.status(200).json(data);
           } catch (e) {
-            console.error(e);
-            return res.status(500).send({ message: e instanceof Error ? e.message : 'Server Error' });
+            return ErrorHandler ? ErrorHandler(e, res) : res.status(500).json({ message: e });
           }
         });
-      }
 
-      this.app.use(routePath, router);
+        this.app.use(endPoint, router);
+      }
     }
 
     return this;
   }
 
-  static setGlobalMiddlewares(...middlewares: any[]) {
-    for (const middleware of middlewares) {
-      this.app.use(middleware);
+  private static getInstancePrototypeAndKeys(instance: any) {
+    const prototype = Object.getPrototypeOf(instance);
+    const propertyKeys = Object.getOwnPropertyNames(prototype);
+
+    return { prototype, propertyKeys };
+  }
+
+  private static getEndPoint(Controller: any) {
+    return Reflect.getMetadata(ENDPOINT_METADATA_KEY, Controller);
+  }
+
+  private static getMiddlewares(constructor: any, prototype: any, propertyKey: string) {
+    const controllerMiddleware = Reflect.getMetadata(MIDDLEWARES_METADATA_KEY, constructor) || [];
+    const routeMiddleware = Reflect.getMetadata(MIDDLEWARES_METADATA_KEY, prototype, propertyKey) || [];
+
+    return [...controllerMiddleware, ...routeMiddleware];
+  }
+
+  private static createHandler(instance: any, propertyKey: string) {
+    return (req: Request, res: Response, next: NextFunction) => {
+      const prototype = Object.getPrototypeOf(instance);
+
+      const args = this.getParams({ instance, req, res, prototype, propertyKey });
+
+      return instance[propertyKey](...args);
+    };
+  }
+
+  private static getParams({
+    instance,
+    req,
+    res,
+    prototype,
+    propertyKey,
+  }: {
+    instance: any;
+    req: Request;
+    res: Response;
+    prototype: any;
+    propertyKey: string;
+  }) {
+    const params = Reflect.getMetadata(REQUEST_METADATA_KEY, prototype, propertyKey);
+
+    const resIndex = Reflect.getMetadata(RESPONSE_METADATA_KEY, prototype, propertyKey);
+
+    const args = new Array(instance[propertyKey].length);
+
+    if (params && Array.isArray(params)) {
+      params.forEach((param: { index: number; ref: string; pipe: (arg: any) => any }) => {
+        const value = param.ref ? this.getValueFromPath(req, param.ref) : req;
+
+        args[param.index] = param.pipe ? param.pipe(value) : value;
+      });
     }
 
-    return this;
+    if (resIndex !== undefined) {
+      args[resIndex] = res;
+    }
+
+    return args;
+  }
+
+  private static getValueFromPath(obj: any, path: string) {
+    return path.split('.').reduce((acc, key) => acc && acc[key], obj);
+  }
+
+  private static getRoute(prototype: any, propertyKey: string): { method: HttpMethodType; path: string } {
+    const route = Reflect.getMetadata(ROUTE_METADATA_KEY, prototype, propertyKey);
+
+    return { method: route?.method, path: route?.path };
   }
 
   static create() {

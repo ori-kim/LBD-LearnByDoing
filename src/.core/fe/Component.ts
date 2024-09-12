@@ -1,3 +1,4 @@
+import { Root } from './Root';
 import { Observable, Store } from './Store';
 import { html } from './Tmpl';
 
@@ -61,7 +62,11 @@ export abstract class Component<T extends object = {}> extends HTMLElement {
 
     this._element = element;
 
-    requestAnimationFrame(() => this.onRender());
+    requestAnimationFrame(() => {
+      // this.setEvent();
+      this.onRender();
+      this.registerEventToRoot();
+    });
 
     return element;
   }
@@ -81,6 +86,57 @@ export abstract class Component<T extends object = {}> extends HTMLElement {
       }
     });
   }
+
+  setEvent() {
+    const prototype = Object.getPrototypeOf(this);
+    const propertyNames = Object.getOwnPropertyNames(prototype);
+
+    for (const property of propertyNames) {
+      const events = Reflect.getMetadata('events', prototype, property);
+
+      if (events?.length > 0) {
+        events.forEach(({ eventType, selector }: { eventType: keyof DocumentEventMap; selector?: string }) => {
+          const handler = (this[property as keyof this] as Function).bind(this);
+
+          if (selector) {
+            this.delegate(selector, eventType, handler);
+          } else {
+            this.target()!.addEventListener(eventType, handler);
+          }
+        });
+      }
+    }
+  }
+
+  getEvents(): { type: keyof HTMLElementEventMap; selector: string; listener: (e: Event) => void }[] {
+    const prototype = Object.getPrototypeOf(this);
+    const propertyNames = Object.getOwnPropertyNames(prototype);
+
+    const eventsMap = [];
+
+    for (const property of propertyNames) {
+      const events = Reflect.getMetadata('events', prototype, property);
+
+      for (const event of events || []) {
+        const { type, selector } = event;
+
+        const listener = (this[property as keyof this] as Function).bind(this);
+
+        eventsMap.push({ type, selector: `${this.selector} ${selector || ''}`, listener });
+      }
+    }
+
+    return eventsMap;
+  }
+
+  registerEventToRoot() {
+    const events = Root.getEventsAndRoot();
+
+    for (const { type, selector, listener } of this.getEvents()) {
+      if (events[type]) events[type].push({ selector, listener });
+      else events[type] = [{ selector, listener }];
+    }
+  }
 }
 
 interface DefineComponentOptions {
@@ -96,3 +152,20 @@ export const defineComponent = <T extends CustomElementConstructor>(
   customElements.define(`c-${name}`, constructor);
   return constructor;
 };
+
+export const DefineComponent =
+  (options: DefineComponentOptions = {}) =>
+  (target: any) => {
+    const name = options.name || Math.random().toString(16).slice(2, 8);
+
+    customElements.define(`c-${name}`, target);
+    return target;
+  };
+
+export const On =
+  (type: keyof HTMLElementEventMap, selector?: string) =>
+  (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
+    const existingEvents = Reflect.getMetadata('events', target, propertyKey) || [];
+
+    Reflect.defineMetadata('events', [...existingEvents, { type, selector }], target, propertyKey);
+  };

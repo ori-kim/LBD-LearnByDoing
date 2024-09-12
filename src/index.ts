@@ -1,47 +1,40 @@
-import { html, Root, style, Tmpl } from './.core/fe';
-import { Component, defineComponent } from './.core/fe/Component';
+import { Response } from 'express';
+import { Bootstrap, BootstrapModule, Controller, Get, Injectable, Query } from './.core/be';
 
-const Color = defineComponent(
-  class extends Component<{ color: string }> {
-    template(data: { color: string }): Tmpl {
-      return html`<button
-      ${style({
-        backgroundColor: data.color,
-        border: 'none',
-        padding: '2rem',
-        margin: '1rem',
-      })}">${data.color}</button>`;
-    }
+export const CommonErrorHandler = (err: unknown, res: Response) => {
+  console.error(err);
 
-    protected onRender(): void {
-      this.target()!.addEventListener('click', () => {
-        this.state.color = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
-      });
-    }
-  },
-);
+  return res.status(500).json({ message: 'Internal Server Error' });
+};
 
-const FlexBox = defineComponent(
-  class extends Component<{ children: Component[] }> {
-    constructor(...children: Component[]) {
-      super({ children });
-    }
+@Injectable()
+class AppService {
+  getAll() {
+    return 'getAll from AppService';
+  }
+}
 
-    template() {
-      return html` <div
-        ${style({
-          display: 'flex',
-          flexDirection: 'row',
-          justifyContent: 'center',
-          alignItems: 'center',
-        })}
-      >
-        ${this.state.children}
-      </div>`;
-    }
-  },
-);
+const Id = () => Query(({ id }) => Number(id));
 
-const root = Root.create('#app');
+@Controller('/')
+class AppController {
+  @Get('/')
+  getAll(@Id() id: number) {
+    return { id };
+  }
+}
 
-root.render(new FlexBox(new Color({ color: 'red' }), new Color({ color: 'blue' })));
+const AppModule: BootstrapModule = {
+  Controller: AppController,
+  ErrorHandler: CommonErrorHandler,
+};
+
+const app = Bootstrap.setGlobalMiddlewares((req, res, next) => {
+  console.log(req.method, req.url);
+
+  next();
+})
+  .setModules(AppModule)
+  .create();
+
+app.listen(3000, () => console.log(`Server is running on 3000`));
